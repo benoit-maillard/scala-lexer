@@ -1,37 +1,35 @@
 package sl
 import scala.util.matching.Regex
 import Expressions._
+import scala.annotation.tailrec
 
 object Lexers {
   class Lexer[T, S](initialState: State[T, S]) {
-    def tokenize(input: CharSequence): Option[Seq[T]] = initialState.tokenize(input)
+    def tokenize(input: CharSequence): Option[Seq[T]] = advance(input, initialState, Seq())
+
+    def advance(input: CharSequence, state: State[T, S], acc: Seq[T]): Option[Seq[T]] =
+      state.firstMatch(input) match {
+        case None => None
+        case Some((tokens, optNext, remainingInput)) => optNext match {
+          case None => Some(acc ++ tokens)
+          case Some(state) => advance(remainingInput, state, acc ++ tokens)
+        } 
+      }
   }
 
   object Lexer {
     def apply[T, S](initialState: State[T, S]) = new Lexer(initialState)
   }
   
-  
   // should contain the type of the state (exemple: level of parenthesis or indentation stack)
   class State[T, C](val rules: Seq[Rule[T, C, _]], val value: C) {
-    def tokenize(input: CharSequence): Option[Seq[T]] = {
-      /*
-      TODO
-      check if there is a rule that matches the beginning of the sequence
-      if we found one, we apply the transition of the rule
-      we use the result of the transition to produce the token and find the next state
-      we call tokenize on the next state with the remainder of the string as argument
-      */
-      findMatch(input)
-    }
-  
-    def findMatch(input: CharSequence, remainingRules: Seq[Rule[T, C, _]] = rules): Option[Seq[T]] = remainingRules match {
+    def firstMatch(input: CharSequence, remainingRules: Seq[Rule[T, C, _]] = rules): Option[(Seq[T], Option[State[T, C]], CharSequence)] = remainingRules match {
       case Seq() => None
       case r +: rs => r.tryTransition(this, input) match {
-        case None => findMatch(input, rs)
+        case None => firstMatch(input, rs)
         case Some((nextState, producedTokens, remainingInput)) =>
-          if (remainingInput.length() == 0) Some(producedTokens)
-          else nextState.findMatch(remainingInput).map(nextStateTokens => producedTokens ++ nextStateTokens)
+          if (remainingInput.length() == 0) Some(producedTokens, None, "")
+          else Some(producedTokens, Some(nextState), remainingInput)
       }
     }
   }
@@ -39,11 +37,6 @@ object Lexers {
   object State {
     def apply[T, C](value: C)(rules: Rule[T, C, _]*) = new State(rules, value)
   }
-  // class CustomState extends State[(Int, List[Int])]
-  
-  // should have a way to compile the expression
-  // should have a map and mapWithState method
-  
   
   class Rule[T, C, E](val expr: CompiledExpr[E], val transition: (C, E) => (State[T, C], Seq[T])) {
     def tryTransition(state: State[T, C], input: CharSequence): Option[(State[T, C], Seq[T], CharSequence)] =
