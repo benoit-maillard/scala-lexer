@@ -5,14 +5,14 @@ import scala.annotation.tailrec
 
 object Lexers {
   class Lexer[T, S](initialState: State[T, S]) {
-    def tokenize(input: CharSequence): Option[Seq[T]] = advance(input, initialState, Seq())
+    def tokenize(input: CharSequence): Option[Seq[T]] = advance(input, initialState, Seq()).map(tokens => tokens.reverse)
 
     def advance(input: CharSequence, state: State[T, S], acc: Seq[T]): Option[Seq[T]] =
       state.firstMatch(input) match {
         case None => None
         case Some((tokens, optNext, remainingInput)) => optNext match {
-          case None => Some(acc ++ tokens)
-          case Some(state) => advance(remainingInput, state, acc ++ tokens)
+          case None => Some(tokens ++ acc)
+          case Some(state) => advance(remainingInput, state, tokens ++ acc)
         } 
       }
   }
