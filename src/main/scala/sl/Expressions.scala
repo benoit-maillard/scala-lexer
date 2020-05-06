@@ -10,18 +10,21 @@ object Expressions {
 
     def get() = re
 
-    def matchWith(seq: CharSequence): Option[(A, Int)] = re.findPrefixMatchOf(seq) match {
+    def matchWith(input: InputState): Option[(A, Position)] = re.findPrefixMatchOf(input.chars) match {
       case None => None
       case Some(m) => {
-        Some(expr.transform(m.subgroups), m.end - m.start)
+        val startPos = input.fromStart
+        val afterPos = m.subgroups.foldLeft(startPos)((pos, str) => pos + str)
+        Some(expr.transform(m.subgroups), afterPos)
       }
     }
 
-    def |>[T, C](transform: (C, A) => (State[T, C], Seq[T])) = new Rule(this, transform)
+    def |>[T, C](transform: (C, A, Position) => (State[T, C], Seq[Positioned[T]])) = new Rule(this, transform)
   }
 
   type Transform[A] = Seq[String] => A
   type BuildExpr = () => Seq[String]
+
   class Expr[A](val transform: Transform[A], val build: BuildExpr, val groupCount: Int) {
     def ~[B](right: Expr[B]): Expr[A ~ B] = Expr(
       results => Expressions.~(
@@ -43,4 +46,16 @@ object Expressions {
   }
 
   case class Part(val content: String)
+
+  case class Positioned[A](val value: A, val pos: Position)
+
+  case class Position(val index: Int, val line: Int, val column: Int) {
+    def +(char: Char): Position =
+      if (char == '\n') Position(index + 1, line + 1, 0)
+      else Position(index + 1, line, column + 1)
+
+    def +(seq: String): Position = seq.foldLeft(this)((acc, c) => acc + c)
+  }
+
+  case class InputState(val fromStart: Position, val chars: CharSequence)
 }
