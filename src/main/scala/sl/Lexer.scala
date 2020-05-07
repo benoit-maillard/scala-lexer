@@ -12,7 +12,7 @@ object Lexers {
     
     @tailrec
     private def advance(input: InputState, state: State[T, S], acc: Seq[Positioned[T]]): Option[Seq[Positioned[T]]] =
-      state.firstMatch(input) match {
+      state.rules.firstMatch(input, state.content) match {
         case None => None
         case Some((tokens, optNext, remainingInput)) => optNext match {
           case None => Some(tokens ++ acc)
@@ -24,13 +24,15 @@ object Lexers {
   object Lexer {
     def apply[T, S](initialState: State[T, S]) = new Lexer(initialState)
   }
+
+  case class State[T, C](val rules: RuleSet[T, C], val content: C)
   
   // should contain the type of the state (exemple: level of parenthesis or indentation stack)
-  class State[T, C](val rules: Seq[Rule[T, C, _]], val value: C) {
-    def firstMatch(input: InputState, remainingRules: Seq[Rule[T, C, _]] = rules): Option[(Seq[Positioned[T]], Option[State[T, C]], InputState)] = remainingRules match {
+  class RuleSet[T, C](val rules: Seq[Rule[T, C, _]]) {
+    def firstMatch(input: InputState, value: C, remainingRules: Seq[Rule[T, C, _]] = rules): Option[(Seq[Positioned[T]], Option[State[T, C]], InputState)] = remainingRules match {
       case Seq() => None
-      case r +: rs => r.tryTransition(this, input) match {
-        case None => firstMatch(input, rs)
+      case r +: rs => r.tryTransition(State(this, value), input) match {
+        case None => firstMatch(input, value, rs)
         case Some((nextState, producedTokens, remainingInput)) =>
           if (remainingInput.chars.length == 0) Some(producedTokens, None, remainingInput)
           else Some(producedTokens, Some(nextState), remainingInput)
@@ -38,23 +40,33 @@ object Lexers {
     }
   }
 
-  object State {
-    def apply[T, C](value: C)(rules: Rule[T, C, _]*) = new State(rules, value)
+  object RuleSet {
+    def apply[T, C](rules: Rule[T, C, _]*) = new RuleSet(rules)
+  }
+
+  trait Rule[T, C, E] {
+    def tryTransition(state: State[T, C], input: InputState): Option[(State[T, C], Seq[Positioned[T]], InputState)]
   }
   
-  class Rule[T, C, E](val expr: CompiledExpr[E], val transition: (C, E, Position) => (State[T, C], Seq[Positioned[T]])) {
-    def tryTransition(state: State[T, C], input: InputState): Option[(State[T, C], Seq[Positioned[T]], InputState)] =
+  case class StandardRule[T, C, E](val expr: CompiledExpr[E], val transition: (C, E, Position) => (State[T, C], Seq[Positioned[T]])) extends Rule[T, C, E] {
+    override def tryTransition(state: State[T, C], input: InputState): Option[(State[T, C], Seq[Positioned[T]], InputState)] =
       expr.matchWith(input) match {
         case None => None
         case Some((value, endPos)) => {
-          val (newState, producedTokens) = transition(state.value, value, input.fromStart)
+          val (newState, producedTokens) = transition(state.content, value, input.fromStart)
           Some((newState, producedTokens.reverse, InputState(endPos, input.chars.subSequence(endPos.index - input.fromStart.index, input.chars.length))))
         }
       }
   }
 
-  object Rule {
-    def apply[T, C, E](expr: CompiledExpr[E], transition: (C, E, Position) => (State[T, C], Seq[Positioned[T]])) =
-      new Rule(expr, transition)
+  case class ReflectiveRule[T, C, E](val expr: CompiledExpr[E], val transition: (C, E, Position) => (C, Seq[Positioned[T]])) extends Rule[T, C, E] {
+    override def tryTransition(state: State[T, C], input: InputState): Option[(State[T, C], Seq[Positioned[T]], InputState)] =
+      expr.matchWith(input) match {
+        case None => None
+        case Some((value, endPos)) => {
+          val (newValue, producedTokens) = transition(state.content, value, input.fromStart)
+          Some((State(state.rules, newValue), producedTokens.reverse, InputState(endPos, input.chars.subSequence(endPos.index - input.fromStart.index, input.chars.length))))
+        }
+      }
   }
 }
