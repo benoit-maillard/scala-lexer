@@ -5,13 +5,13 @@ import scala.annotation.tailrec
 
 object Lexers {
   class Lexer[T, S](initialState: State[T, S]) {
-    def tokenize(input: String): Option[Seq[Positioned[T]]] = {
+    def tokenize(input: String): Option[List[Positioned[T]]] = {
       val start = InputState(Position(0, 1, 0), new ArrayCharSequence(input.toArray))
-      advance(start, initialState, Seq()).map(s => s.reverse)
+      advance(start, initialState, Nil).map(s => s.reverse)
     }
     
     @tailrec
-    private def advance(input: InputState, state: State[T, S], acc: Seq[Positioned[T]]): Option[Seq[Positioned[T]]] =
+    private def advance(input: InputState, state: State[T, S], acc: List[Positioned[T]]): Option[List[Positioned[T]]] =
       state.rules.firstMatch(input, state.content) match {
         case None => None
         case Some((tokens, optNext, remainingInput)) => optNext match {
@@ -29,7 +29,7 @@ object Lexers {
   
   // should contain the type of the state (exemple: level of parenthesis or indentation stack)
   class RuleSet[T, C](val rules: Seq[Rule[T, C, _]]) {
-    def firstMatch(input: InputState, value: C, remainingRules: Seq[Rule[T, C, _]] = rules): Option[(Seq[Positioned[T]], Option[State[T, C]], InputState)] = remainingRules match {
+    def firstMatch(input: InputState, value: C, remainingRules: Seq[Rule[T, C, _]] = rules): Option[(List[Positioned[T]], Option[State[T, C]], InputState)] = remainingRules match {
       case Seq() => None
       case r +: rs => r.tryTransition(State(this, value), input) match {
         case None => firstMatch(input, value, rs)
@@ -45,11 +45,11 @@ object Lexers {
   }
 
   trait Rule[T, C, E] {
-    def tryTransition(state: State[T, C], input: InputState): Option[(State[T, C], Seq[Positioned[T]], InputState)]
+    def tryTransition(state: State[T, C], input: InputState): Option[(State[T, C], List[Positioned[T]], InputState)]
   }
   
-  case class StandardRule[T, C, E](val expr: CompiledExpr[E], val transition: (C, E, Position) => (State[T, C], Seq[Positioned[T]])) extends Rule[T, C, E] {
-    override def tryTransition(state: State[T, C], input: InputState): Option[(State[T, C], Seq[Positioned[T]], InputState)] =
+  case class StandardRule[T, C, E](val expr: CompiledExpr[E], val transition: (C, E, Position) => (State[T, C], List[Positioned[T]])) extends Rule[T, C, E] {
+    override def tryTransition(state: State[T, C], input: InputState): Option[(State[T, C], List[Positioned[T]], InputState)] =
       expr.matchWith(input) match {
         case None => None
         case Some((value, endPos)) => {
@@ -59,8 +59,8 @@ object Lexers {
       }
   }
 
-  case class ReflectiveRule[T, C, E](val expr: CompiledExpr[E], val transition: (C, E, Position) => (C, Seq[Positioned[T]])) extends Rule[T, C, E] {
-    override def tryTransition(state: State[T, C], input: InputState): Option[(State[T, C], Seq[Positioned[T]], InputState)] =
+  case class ReflectiveRule[T, C, E](val expr: CompiledExpr[E], val transition: (C, E, Position) => (C, List[Positioned[T]])) extends Rule[T, C, E] {
+    override def tryTransition(state: State[T, C], input: InputState): Option[(State[T, C], List[Positioned[T]], InputState)] =
       expr.matchWith(input) match {
         case None => None
         case Some((value, endPos)) => {

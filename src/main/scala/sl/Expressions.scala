@@ -19,9 +19,9 @@ object Expressions {
       }
     }
 
-    def |~>[T, C](transform: (C, A, Position) => (State[T, C], Seq[Positioned[T]])) = StandardRule(this, transform)
+    def |~>[T, C](transform: (C, A, Position) => (State[T, C], List[Positioned[T]])) = StandardRule(this, transform)
 
-    def |>[T, C](transform: (C, A, Position) => (C, Seq[Positioned[T]])) = ReflectiveRule(this, transform)
+    def |>[T, C](transform: (C, A, Position) => (C, List[Positioned[T]])) = ReflectiveRule(this, transform)
   }
 
   type Transform[A] = Seq[String] => A
