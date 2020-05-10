@@ -7,6 +7,12 @@ trait Lexers {
   type Token
   type Value
 
+  /**
+    * 
+    *
+    * @param rules
+    * @param content
+    */
   case class LexerState(rules: RuleSet, content: Value)
   case class RuleMatch(tokens: List[Positioned[Token]], state: LexerState, inputState: InputState)
 
@@ -35,6 +41,8 @@ trait Lexers {
         case someMatch => someMatch
       }
     }
+
+    def apply(value: Value): LexerState = LexerState(this, value)
   }
 
   abstract class Rule[ExprRes](expr: CompiledExpr[ExprRes]) {
