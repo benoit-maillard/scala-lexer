@@ -6,6 +6,8 @@ object Expressions {
   type Transform[A] = Seq[String] => A
   type BuildExpr = () => Seq[String]
 
+  case class InputState(val fromStart: Position, val chars: CharSequence)
+
   class Expr[A](val transform: Transform[A], val build: BuildExpr, val groupCount: Int) {
     def ~[B](right: Expr[B]): Expr[A ~ B] = Expr(
       results => Expressions.~(
@@ -37,6 +39,4 @@ object Expressions {
 
     def +(seq: String): Position = seq.foldLeft(this)((acc, c) => acc + c)
   }
-
-  case class InputState(val fromStart: Position, val chars: CharSequence)
 }
