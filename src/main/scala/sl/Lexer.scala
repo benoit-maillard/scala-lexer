@@ -3,70 +3,93 @@ import scala.util.matching.Regex
 import Expressions._
 import scala.annotation.tailrec
 
-object Lexers {
-  class Lexer[T, S](initialState: State[T, S]) {
-    def tokenize(input: String): Option[List[Positioned[T]]] = {
+trait Lexers {
+  type Token
+  type Value
+
+  class Lexer(initialState: State) {
+    def tokenize(input: String): Option[List[Positioned[Token]]] = {
       val start = InputState(Position(0, 1, 0), new ArrayCharSequence(input.toArray))
       advance(start, initialState, Nil).map(s => s.reverse)
     }
     
     @tailrec
-    private def advance(input: InputState, state: State[T, S], acc: List[Positioned[T]]): Option[List[Positioned[T]]] =
+    private def advance(input: InputState, state: State, acc: List[Positioned[Token]]): Option[List[Positioned[Token]]] =
       state.rules.firstMatch(input, state.content) match {
         case None => None
-        case Some((tokens, optNext, remainingInput)) => optNext match {
-          case None => Some(tokens ++ acc)
-          case Some(state) => advance(remainingInput, state, tokens ++ acc)
-        }
+        case Some((tokens, nextState, remainingInput)) =>
+          if (remainingInput.chars.length == 0) Some(tokens ++ acc)
+          else advance(remainingInput, nextState, tokens ++ acc)
       }
   }
 
   object Lexer {
-    def apply[T, S](initialState: State[T, S]) = new Lexer(initialState)
+    def apply(initialState: State) = new Lexer(initialState)
   }
 
-  case class State[T, C](val rules: RuleSet[T, C], val content: C)
+  case class State(val rules: RuleSet, val content: Value)
   
   // should contain the type of the state (exemple: level of parenthesis or indentation stack)
-  class RuleSet[T, C](val rules: Seq[Rule[T, C, _]]) {
-    def firstMatch(input: InputState, value: C, remainingRules: Seq[Rule[T, C, _]] = rules): Option[(List[Positioned[T]], Option[State[T, C]], InputState)] = remainingRules match {
+  class RuleSet(val rules: Seq[Rule[_]]) {
+    def firstMatch(input: InputState, value: Value, remainingRules: Seq[Rule[_]] = rules): Option[(List[Positioned[Token]], State, InputState)] = remainingRules match {
       case Seq() => None
       case r +: rs => r.tryTransition(State(this, value), input) match {
         case None => firstMatch(input, value, rs)
-        case Some((nextState, producedTokens, remainingInput)) =>
-          if (remainingInput.chars.length == 0) Some(producedTokens, None, remainingInput)
-          else Some(producedTokens, Some(nextState), remainingInput)
+        case Some((producedTokens, nextState, remainingInput)) => Some(producedTokens, nextState, remainingInput)
       }
     }
   }
 
   object RuleSet {
-    def apply[T, C](rules: Rule[T, C, _]*) = new RuleSet(rules)
+    def apply[Token, Value](rules: Rule[_]*) = new RuleSet(rules)
   }
 
-  trait Rule[T, C, E] {
-    def tryTransition(state: State[T, C], input: InputState): Option[(State[T, C], List[Positioned[T]], InputState)]
+  trait Rule[ExprRes] {
+    def tryTransition(state: State, input: InputState): Option[(List[Positioned[Token]], State, InputState)]
   }
-  
-  case class StandardRule[T, C, E](val expr: CompiledExpr[E], val transition: (C, E, Position) => (State[T, C], List[Positioned[T]])) extends Rule[T, C, E] {
-    override def tryTransition(state: State[T, C], input: InputState): Option[(State[T, C], List[Positioned[T]], InputState)] =
+
+  type StandardTransition[ExprRes] = (Value, ExprRes, Position) => (State, List[Positioned[Token]])
+
+  case class StandardRule[ExprRes](expr: CompiledExpr[ExprRes], transition: StandardTransition[ExprRes]) extends Rule[ExprRes] {
+    override def tryTransition(state: State, input: InputState): Option[(List[Positioned[Token]], State, InputState)] =
       expr.matchWith(input) match {
         case None => None
         case Some((value, endPos)) => {
           val (newState, producedTokens) = transition(state.content, value, input.fromStart)
-          Some((newState, producedTokens.reverse, InputState(endPos, input.chars.subSequence(endPos.index - input.fromStart.index, input.chars.length))))
+          Some((producedTokens.reverse, newState, InputState(endPos, input.chars.subSequence(endPos.index - input.fromStart.index, input.chars.length))))
         }
       }
   }
 
-  case class ReflectiveRule[T, C, E](val expr: CompiledExpr[E], val transition: (C, E, Position) => (C, List[Positioned[T]])) extends Rule[T, C, E] {
-    override def tryTransition(state: State[T, C], input: InputState): Option[(State[T, C], List[Positioned[T]], InputState)] =
+  type ReflectiveTransition[ExprRes] = (Value, ExprRes, Position) => (Value, List[Positioned[Token]])
+
+  case class ReflectiveRule[ExprRes](expr: CompiledExpr[ExprRes], transition: ReflectiveTransition[ExprRes]) extends Rule[ExprRes] {
+    override def tryTransition(state: State, input: InputState): Option[(List[Positioned[Token]], State, InputState)] =
       expr.matchWith(input) match {
         case None => None
         case Some((value, endPos)) => {
           val (newValue, producedTokens) = transition(state.content, value, input.fromStart)
-          Some((State(state.rules, newValue), producedTokens.reverse, InputState(endPos, input.chars.subSequence(endPos.index - input.fromStart.index, input.chars.length))))
+          Some((producedTokens.reverse, State(state.rules, newValue), InputState(endPos, input.chars.subSequence(endPos.index - input.fromStart.index, input.chars.length))))
         }
       }
+  }
+
+  class CompiledExpr[A](expr: Expr[A]) {
+    val re = expr.build().map(s => "(" + s + ")").reduce(_ + _).r
+
+    def get() = re
+
+    def matchWith(input: InputState): Option[(A, Position)] = re.findPrefixMatchOf(input.chars) match {
+      case None => None
+      case Some(m) => {
+        val startPos = input.fromStart
+        val afterPos = m.subgroups.foldLeft(startPos)((pos, str) => pos + str)
+        Some(expr.transform(m.subgroups), afterPos)
+      }
+    }
+
+    def |~>[Token, Value](transform: StandardTransition[A]) = StandardRule(this, transform)
+
+    def |>[Token, Value](transform: ReflectiveTransition[A]) = ReflectiveRule(this, transform)
   }
 }

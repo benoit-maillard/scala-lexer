@@ -1,28 +1,7 @@
 package sl
 
-import Lexers._
-
 object Expressions {
   case class ~[A, B](left: A, right: B)
-
-  class CompiledExpr[A](expr: Expr[A]) {
-    val re = expr.build().map(s => "(" + s + ")").reduce(_ + _).r
-
-    def get() = re
-
-    def matchWith(input: InputState): Option[(A, Position)] = re.findPrefixMatchOf(input.chars) match {
-      case None => None
-      case Some(m) => {
-        val startPos = input.fromStart
-        val afterPos = m.subgroups.foldLeft(startPos)((pos, str) => pos + str)
-        Some(expr.transform(m.subgroups), afterPos)
-      }
-    }
-
-    def |~>[T, C](transform: (C, A, Position) => (State[T, C], List[Positioned[T]])) = StandardRule(this, transform)
-
-    def |>[T, C](transform: (C, A, Position) => (C, List[Positioned[T]])) = ReflectiveRule(this, transform)
-  }
 
   type Transform[A] = Seq[String] => A
   type BuildExpr = () => Seq[String]
