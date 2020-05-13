@@ -29,6 +29,14 @@ trait Lexers {
   case class RuleMatch(tokens: List[Positioned[Token]], state: LexerState, inputState: InputState)
 
   /**
+    * Error in the lexing process
+    *
+    * @param message error message
+    * @param pos position where the problem appeared
+    */
+  case class LexerError(message: String, pos: Position) extends Error
+
+  /**
     * Lexer that can produce tokens given an input string.
     *
     * @param initialState set of rules and value that can be matched at the start of input string
@@ -84,7 +92,7 @@ trait Lexers {
       * @return a RuleMatch instance if any of the rules is matching the input prefix, None otherwise
       */
     def firstMatch(input: InputState, value: Value, remainingRules: Seq[Rule[_]] = rules): Option[RuleMatch] = remainingRules match {
-      case Seq() => None
+      case Seq() => throw LexerError("Unkown token", input.fromStart)
       case r +: rs => r.tryTransition(LexerState(this, value), input) match {
         case None => firstMatch(input, value, rs)
         case someMatch => someMatch
