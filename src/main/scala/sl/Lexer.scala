@@ -2,6 +2,8 @@ package sl
 import scala.util.matching.Regex
 import Expressions._
 import scala.annotation.tailrec
+import java.io.File
+import scala.io.Source
 
 trait Lexers {
   type Token
@@ -33,14 +35,25 @@ trait Lexers {
     */
   case class Lexer(initialState: LexerState) {
     /**
-      * Produces tokens using the successive rules and the given input.
+      * Produces tokens using the successive rules and the given string.
       *
       * @param input string containing tokens
       * @return produced tokens if matching rules were found for the entire input, None otherwise
       */
-    def tokenize(input: String): Option[List[Positioned[Token]]] = {
+    def tokenizeFromString(input: String): Option[List[Positioned[Token]]] = {
       val start = InputState(Position(0, 1, 0), new ArrayCharSequence(input.toArray))
       advance(start, initialState, Nil).map(s => s.reverse)
+    }
+
+    /**
+      * Produces tokens using the successive rules and the given input file.
+      *
+      * @param path file containing tokens
+      * @return produced tokens if matching rules were found for the entire input, None otherwise
+      */
+    def tokenizeFromFile(path: String): Option[List[Positioned[Token]]] = {
+      val content = Source.fromFile(path).getLines().mkString
+      tokenizeFromString(content)
     }
     
     // uses successive rules to make progress with input
