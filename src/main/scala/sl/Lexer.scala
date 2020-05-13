@@ -52,7 +52,7 @@ trait Lexers {
       * @return produced tokens if matching rules were found for the entire input, None otherwise
       */
     def tokenizeFromFile(path: String): Option[List[Positioned[Token]]] = {
-      val content = Source.fromFile(path).getLines().mkString
+      val content = Source.fromFile(path).mkString
       tokenizeFromString(content)
     }
     
