@@ -105,7 +105,7 @@ object Expressions {
       * @return updated position
       */
     def +(char: Char): Position =
-      if (char == '\n') Position(index + 1, line + 1, 0)
+      if (char == '\n') Position(index + 1, line + 1, 1)
       else Position(index + 1, line, column + 1)
 
     /**
