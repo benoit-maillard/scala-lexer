@@ -13,6 +13,14 @@ object Expressions {
   type BuildExpr = () => Seq[String]
 
   /**
+      * Creates a basic regular expression from a scala standard library regex string
+      *
+      * @param re regex string
+      * @return resulting expression
+      */
+  def unit(re: String): Expr[String] = Expr(results => results.head, () => Seq(re), 1)
+
+  /**
     * Represents the remaining input.
     *
     * @param fromStart position from the start of the original input
@@ -72,14 +80,6 @@ object Expressions {
       */
     def apply[A](transform: Transform[A], build: BuildExpr, groupCount: Int) =
       new Expr(transform, build, groupCount)
-
-      /**
-        * Creates a basic regular expression from a scala standard library regex string
-        *
-        * @param re regex string
-        * @return resulting expression
-        */
-    def unit(re: String): Expr[String] = Expr(results => results.head, () => Seq(re), 1)
   }
 
   /**
