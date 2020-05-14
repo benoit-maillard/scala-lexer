@@ -1,5 +1,7 @@
 package sl
 
+import scala.language.implicitConversions
+
 object Expressions {
   /**
     * Two arbitrary values
@@ -18,7 +20,7 @@ object Expressions {
       * @param re regex string
       * @return resulting expression
       */
-  def unit(re: String): Expr[String] = Expr(results => results.head, () => Seq(re), 1)
+  implicit def unit(re: String): Expr[String] = Expr(results => results.head, () => Seq(re), 1)
 
   /**
     * Represents the remaining input.

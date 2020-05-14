@@ -4,6 +4,7 @@ import Expressions._
 import scala.annotation.tailrec
 import java.io.File
 import scala.io.Source
+import scala.language.implicitConversions
 
 trait Lexers {
   type Token
@@ -163,6 +164,14 @@ trait Lexers {
       (LexerState(state.rules, newValue), producedTokens)
     }
   }
+
+  /**
+    * Compiles a regular expression
+    *
+    * @param expr expression
+    * @return compiled expression
+    */
+  implicit def compileExpr[A](expr: Expr[A]): CompiledExpr[A] = new CompiledExpr(expr)
 
   /**
     * Top-level, compiled regular expression
