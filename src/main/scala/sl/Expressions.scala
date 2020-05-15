@@ -93,9 +93,6 @@ object Expressions {
       * @return resulting expression
       */
     def map[B](tr: A => B) = Expr(transform andThen tr, build, groupCount)
-    
-    // TODO create a unit type ? it does not make sense to be able to transform
-    def |(right: Expr[A]): Expr[A] = ???
   }
 
   /**
