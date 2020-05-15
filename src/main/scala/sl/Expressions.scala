@@ -32,6 +32,24 @@ object Expressions {
   implicit def unit(re: Regex): Expr[String] = unit(re.pattern.pattern)
 
   /**
+    * Creates a regular expression that accepts any of the given patterns
+    *
+    * @param res patterns
+    * @return resulting expression
+    */
+  def oneOf(res: String*): Expr[String] =
+    unit(res.map(s => f"(?:$s)").reduceLeft(_ ++ "|" ++ _))
+
+  /**
+    * Creates a regular expression that accepts any of the given patterns
+    *
+    * @param res
+    * @return resulting expression
+    */
+  def oneOfRe(res: Regex*): Expr[String] =
+    oneOf(res.map(r => r.pattern.pattern):_*)
+
+  /**
     * Represents the remaining input.
     *
     * @param fromStart position from the start of the original input
