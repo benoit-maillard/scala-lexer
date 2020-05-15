@@ -1,6 +1,7 @@
 package sl
 
 import scala.language.implicitConversions
+import scala.util.matching.Regex
 
 object Expressions {
   /**
@@ -21,6 +22,14 @@ object Expressions {
       * @return resulting expression
       */
   implicit def unit(re: String): Expr[String] = Expr(results => results.head, () => Seq(re), 1)
+
+  /**
+    * Creates a basic regular expression from a scala standard library regex
+    *
+    * @param re regex
+    * @return resulting expression
+    */
+  implicit def unit(re: Regex): Expr[String] = unit(re.pattern.pattern)
 
   /**
     * Represents the remaining input.
@@ -66,6 +75,9 @@ object Expressions {
       * @return resulting expression
       */
     def map[B](tr: A => B) = Expr(transform andThen tr, build, groupCount)
+    
+    // TODO create a unit type ? it does not make sense to be able to transform
+    def |(right: Expr[A]): Expr[A] = ???
   }
 
   /**
