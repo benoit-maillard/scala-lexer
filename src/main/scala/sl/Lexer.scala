@@ -50,7 +50,7 @@ trait Lexers {
       * @return produced tokens if matching rules were found for the entire input, None otherwise
       */
     def tokenizeFromString(input: String): Option[List[Positioned[Token]]] = {
-      val start = InputState(Position(0, 1, 0), new ArrayCharSequence(input.toArray))
+      val start = InputState(Position.initial, new ArrayCharSequence(input.toArray))
       advance(start, initialState, Nil).map(s => s.reverse)
     }
 

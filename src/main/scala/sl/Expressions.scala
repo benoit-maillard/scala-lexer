@@ -148,4 +148,16 @@ object Expressions {
       */
     def +(seq: String): Position = seq.foldLeft(this)((acc, c) => acc + c)
   }
+
+  /**
+    * Companion object for Position class
+    */
+  object Position {
+    /**
+      * Initial position in input
+      *
+      * @return position
+      */
+    def initial = Position(0, 1, 1)
+  }
 }
