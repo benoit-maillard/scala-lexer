@@ -209,7 +209,7 @@ trait Lexers {
       * @param transform transformation function
       * @return resulting rule
       */
-    def |~>[Token, Value](transform: StandardTransition[A]) = StandardRule(this, transform)
+    def |~>(transform: StandardTransition[A]) = StandardRule(this, transform)
 
     /**
       * Associated the expression with a transition to a state with the same set of rules to create a rule
@@ -217,6 +217,6 @@ trait Lexers {
       * @param transform transformation function
       * @return resulting rule
       */
-    def |>[Token, Value](transform: ReflectiveTransition[A]) = ReflectiveRule(this, transform)
+    def |>(transform: ReflectiveTransition[A]) = ReflectiveRule(this, transform)
   }
 }
