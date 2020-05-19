@@ -35,7 +35,7 @@ trait Lexers {
     * @param message error message
     * @param pos position where the problem appeared
     */
-  case class LexerError(message: String, pos: Position) extends Error
+  case class LexerError(message: String, pos: Position) extends Error(f"$message at (${pos.line}, ${pos.column})")
 
   /**
     * Lexer that can produce tokens given an input string.
