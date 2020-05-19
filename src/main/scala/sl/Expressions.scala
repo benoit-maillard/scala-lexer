@@ -110,6 +110,23 @@ object Expressions {
     unit(res.map(s => f"(?:$s)").reduceLeft(_ ++ "|" ++ _))
 
   /**
+    * Creates a regular expression that accepts any of the given patterns after having escaped
+    * special characters in each pattern.
+    *
+    * @param res
+    * @return
+    */
+  def oneOfEscaped(res: String*): Group = oneOf(res.map(escape(_)):_*)
+
+  /**
+    * Escapes characters that have a particular meaning in regex syntax
+    *
+    * @param s regex string with unescaped characters
+    * @return regex string with escaped characters
+    */
+  def escape(s: String): String = """[\.\^\$\*\+\?\(\)\[\{\\\|]""".r.replaceAllIn(s, """\\$0""")
+
+  /**
     * Creates a regular expression that accepts any of the given patterns
     *
     * @param res
