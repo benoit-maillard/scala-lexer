@@ -1,0 +1,7 @@
+KeywordToken(True)(1,1)
+Space(1,5)
+KeywordToken(if)(2,1)
+Space(2,3)
+KeywordToken(else)(3,1)
+Space(3,5)
+KeywordToken(False)(4,1)
