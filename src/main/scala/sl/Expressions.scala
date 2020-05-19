@@ -203,7 +203,7 @@ object Expressions {
     * @param value value
     * @param pos position of the value
     */
-  case class Positioned[A](val value: A, val pos: Position)
+  case class Positioned[+A](val value: A, val pos: Position)
 
   /**
     * Position in a multi-line string
