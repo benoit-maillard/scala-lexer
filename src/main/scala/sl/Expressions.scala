@@ -16,12 +16,73 @@ object Expressions {
   type BuildExpr = () => Seq[String]
 
   /**
-      * Creates a basic regular expression from a scala standard library regex string
+    * A regular expression group
+    *
+    * @param build
+    */
+  case class Group(val build: () => String) {
+    /**
+      * Disjunction between two regular expressions
       *
-      * @param re regex string
-      * @return resulting expression
+      * @param that regex group
+      * @return an expression that matches if at least one side matches
       */
-  implicit def unit(re: String): Expr[String] = Expr(results => results.head, () => Seq(re), 1)
+    def |(that: Group): Group = Group(() => 
+      f"(?:${this.build()})|(?:${that.build()})"
+    )
+
+    /**
+      * Concatenation between two regular expressions
+      *
+      * @param that regex group
+      * @return matches`ab` if `a` matches the left side and `b` matches the right side
+      */
+    def ~(that: Group): Group = Group(() =>
+      f"(?:${this.build()})(?:${that.build()})"  
+    )
+  }
+
+  /**
+    * Repetition of a regular expression
+    *
+    * @param group regex group
+    * @return matches if the pattern is repeated 0 or more times
+    */
+  def many(group: Group): Group = Group(() => f"(?:${group.build()})*")
+
+  /**
+    * Repetition at least once of a regular expression
+    *
+    * @param group regex group
+    * @return matches if the pattern is repeated at least once
+    */
+  def many1(group: Group): Group = Group(() => f"(?:${group.build()})+")
+
+  /**
+    * Optional pattern
+    *
+    * @param group regular expression
+    * @return matches the empty string or the given pattern
+    */
+  def opt(group: Group): Group = Group(() => f"(?:${group.build()})?")
+
+  /**
+    * Creates a regex with a single group
+    *
+    * @param g regexp group
+    * @return expression with a single group
+    */
+  implicit def toExpr(g: Group): Expr[String] = Expr(results => results.head, () => Seq(g.build()), 1)
+
+
+
+  /**
+    * Creates a basic regular expression from a scala standard library regex string
+    *
+    * @param re regex string
+    * @return resulting expression
+    */
+  implicit def unit(re: String): Group = Group(() => re)
 
   /**
     * Creates a basic regular expression from a scala standard library regex
@@ -29,7 +90,15 @@ object Expressions {
     * @param re regex
     * @return resulting expression
     */
-  implicit def unit(re: Regex): Expr[String] = unit(re.pattern.pattern)
+  implicit def unit(re: Regex): Group = unit(re.pattern.pattern)
+
+  /**
+    * Creates a regex with a single group from a regex string
+    *
+    * @param re regex string
+    * @return resulting expression
+    */
+  implicit def groupUnit(re: String): Expr[String] = toExpr(unit(re))
 
   /**
     * Creates a regular expression that accepts any of the given patterns
@@ -37,7 +106,7 @@ object Expressions {
     * @param res patterns
     * @return resulting expression
     */
-  def oneOf(res: String*): Expr[String] =
+  def oneOf(res: String*): Group =
     unit(res.map(s => f"(?:$s)").reduceLeft(_ ++ "|" ++ _))
 
   /**
@@ -58,7 +127,7 @@ object Expressions {
   case class InputState(val fromStart: Position, val chars: CharSequence)
 
   /**
-    * A regular expression that supports groups and transformations.
+    * A regular expression composed of at least one group
     *
     * @param transform function that takes a sequence of strings (matched groups) as input and produces a value
     * @param build function that defines how the scala standard library regex should be built
@@ -72,7 +141,7 @@ object Expressions {
       * @param right second expression
       * @return resulting expression
       */
-    def ~[B](right: Expr[B]): Expr[A ~ B] = Expr(
+    def ~/~[B](right: Expr[B]): Expr[A ~ B] = Expr(
       results => Expressions.~(
         this.transform(results.take(groupCount)),
         right.transform(results.takeRight(right.groupCount))

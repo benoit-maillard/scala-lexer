@@ -174,6 +174,14 @@ trait Lexers {
   implicit def compileExpr[A](expr: Expr[A]): CompiledExpr[A] = new CompiledExpr(expr)
 
   /**
+    * Compiles a regular expression made of a single group
+    *
+    * @param expr expression
+    * @return compiled expression
+    */
+  implicit def compileGroup(expr: Group): CompiledExpr[String] = new CompiledExpr(toExpr(expr))
+
+  /**
     * Top-level, compiled regular expression
     *
     * @param expr underlying expression
