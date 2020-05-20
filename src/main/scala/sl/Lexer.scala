@@ -71,7 +71,10 @@ trait Lexers {
       state.rules.firstMatch(input, state.value) match {
         case None => None
         case Some(RuleMatch(tokens, nextState, remainingInput)) =>
-          if (remainingInput.chars.length == 0) Some(tokens ++ acc)
+          if (remainingInput.chars.length == 0) {
+            val finalTokens = nextState.rules.finalAction(nextState.value, remainingInput.fromStart)
+            Some(finalTokens.reverse ++ tokens ++ acc)
+          }
           else advance(remainingInput, nextState, tokens ++ acc)
       }
   }
@@ -83,7 +86,7 @@ trait Lexers {
     *
     * @param rules
     */
-  case class RuleSet(val rules: Rule[_]*) {
+  class RuleSet(val rules: Seq[Rule[_]], val finalAction: (Value, Position) => List[Positioned[Token]] = (_, _) => List()) {
     /**
       * Tries to match the rules of the set against the input in priority order recursively.
       *
@@ -107,6 +110,23 @@ trait Lexers {
       * @return State based on the current state and the value
       */
     def apply(value: Value): LexerState = LexerState(this, value)
+
+    /**
+      * Add a final action that will be executed when the whole input is consumed. This can be useful
+      * to check that some properties hold once the whole input is tokenized.
+      *
+      * @param finalAction function that can generates token
+      * @return new ruleset with the action
+      */
+    def withFinalAction(finalAction: (Value, Position) => List[Positioned[Token]]) =
+      new RuleSet(rules, finalAction)
+  }
+
+  /**
+    * Companion object for RuleSet
+    */
+  object RuleSet {
+    def apply(rules: Rule[_]*) = new RuleSet(rules)
   }
 
   /**
