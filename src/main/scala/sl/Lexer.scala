@@ -41,8 +41,9 @@ trait Lexers {
     * Lexer that can produce tokens given an input string.
     *
     * @param initialState set of rules and value that can be matched at the start of input string
+    * @param error token that should be produced when no matching rule can be found
     */
-  case class Lexer(initialState: LexerState) {
+  case class Lexer(initialState: LexerState, error: Token) {
     /**
       * Produces tokens using the successive rules and the given string.
       *
@@ -69,7 +70,7 @@ trait Lexers {
     @tailrec
     private def advance(input: InputState, state: LexerState, acc: List[Positioned[Token]]): Option[List[Positioned[Token]]] =
       state.rules.firstMatch(input, state.value) match {
-        case None => None
+        case None => Some(Positioned(error, input.fromStart) :: acc)
         case Some(RuleMatch(tokens, nextState, remainingInput)) =>
           if (remainingInput.chars.length == 0) {
             val finalTokens = nextState.rules.finalAction(nextState.value, remainingInput.fromStart)
@@ -96,7 +97,7 @@ trait Lexers {
       * @return a RuleMatch instance if any of the rules is matching the input prefix, None otherwise
       */
     def firstMatch(input: InputState, value: Value, remainingRules: Seq[Rule[_]] = rules): Option[RuleMatch] = remainingRules match {
-      case Seq() => throw LexerError("Unkown token", input.fromStart)
+      case Seq() => None
       case r +: rs => r.tryTransition(LexerState(this, value), input) match {
         case None => firstMatch(input, value, rs)
         case someMatch => someMatch

@@ -24,6 +24,12 @@ abstract class OutputComparisonSpec extends FlatSpec {
     assertResult(expected)(actual)
   }
 
+  def outputContains(testName: String, token: String): Assertion = {
+    val out = output(testName)
+    val re = ("(^|\n)" + token).r
+    assert(re.findFirstIn(out).isDefined)
+  }
+
   def output(testName: String): String = {
     val inputFileName = rootInput + testName + inputExtension
     pipeline(inputFileName)
@@ -31,5 +37,5 @@ abstract class OutputComparisonSpec extends FlatSpec {
 
   def input(testName: String): String =
     Source.fromFile(rootOutput + testName + outputExtension)
-      .getLines().mkString
+      .mkString
 }

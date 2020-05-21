@@ -13,8 +13,9 @@ class SimplifiedPythonTest extends OutputComparisonSpec with Lexers {
   trait T
   case class KeywordToken(value: String) extends T
   case object Space extends T
+  case object Error extends T
 
-  val lexer = Lexer(LexerState(rules, 0))
+  val lexer = Lexer(LexerState(rules, 0), Error)
 
   lazy val rules = RuleSet(
     oneOf("True", "False", "if", "else") |> {
@@ -27,7 +28,7 @@ class SimplifiedPythonTest extends OutputComparisonSpec with Lexers {
 
   val pipeline = path => lexer.tokenizeFromFile(path)
     .get.map{case Positioned(token, pos) => f"$token(${pos.line},${pos.column})"}
-    .reduce(_ ++ _)
+    .reduce(_ ++ "\n" ++ _)
 
   "simplified python lexer" should "tokenize keywords correctly" in {
     outputMatch("simplified-python-1")

@@ -16,6 +16,7 @@ class IndentationGrammarTest extends OutputComparisonSpec with Lexers {
   case object Newline extends T
   case object Indent extends T
   case object Dedent extends T
+  case object Error extends T
 
   // counts the number of spaces
   val indentExpr: Expr[Int] = unit("""[ ]*""").map(s => s.length)
@@ -36,27 +37,26 @@ class IndentationGrammarTest extends OutputComparisonSpec with Lexers {
           else if (spaces > current)
             (LexerState(indentRules, spaces +: indents), List(Positioned(Newline, pos), Positioned(Indent, pos)))
           else if (spaces == tl.head) (LexerState(indentRules, tl), List(Positioned(Newline, pos), Positioned(Dedent, pos)))
-          else throw LexerError("Wrong indentation level", pos)
+          else (LexerState(indentRules, tl), List(Positioned(Error, pos)))
       }
     }
   )
   
-  val lexer = Lexer(LexerState(indentRules, Seq(0)))
-  val result = lexer.tokenizeFromFile("examples/example.txt")
+  val lexer = Lexer(LexerState(indentRules, Seq(0)), Error)
 
   val pipeline = path => lexer.tokenizeFromFile(path)
     .get.map{case Positioned(token, pos) => f"$token(${pos.line},${pos.column})"}
-    .reduce(_ ++ _)
+    .reduce(_ ++ "\n" ++ _)
 
   "indentation-based lexer" should "tokenize basic file correctly" in {
     outputMatch("indent-grammar-1")
   }
 
   it should "fail if input contains invalid tokens" in {
-    assertThrows[LexerError](output("indent-grammar-invalid"))
+    outputContains("indent-grammar-invalid", "Error")
   }
 
   it should "fail if input contains inconsistent indentation" in {
-    assertThrows[LexerError](output("indent-grammar-inconsistent"))
+    outputContains("indent-grammar-inconsistent", "Error")
   }
 }
