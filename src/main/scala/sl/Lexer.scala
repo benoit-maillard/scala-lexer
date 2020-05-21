@@ -96,11 +96,19 @@ trait Lexers {
       * @param remainingRules rules against which matching is yet to be attempted
       * @return a RuleMatch instance if any of the rules is matching the input prefix, None otherwise
       */
-    def firstMatch(input: InputState, value: Value, remainingRules: Seq[Rule[_]] = rules): Option[RuleMatch] = remainingRules match {
-      case Seq() => None
+    def firstMatch(input: InputState, value: Value, remainingRules: Seq[Rule[_]] = rules, best: Option[RuleMatch] = None): Option[RuleMatch] = remainingRules match {
+      case Seq() => best match {
+        case Some(_) => best
+        case None => None
+      }
       case r +: rs => r.tryTransition(LexerState(this, value), input) match {
-        case None => firstMatch(input, value, rs)
-        case someMatch => someMatch
+        case None => firstMatch(input, value, rs, best)
+        case Some(m) => {
+          if (m.inputState.fromStart.index > best.map(_.inputState.fromStart.index).getOrElse(0))
+            firstMatch(input, value, rs, Some(m))
+          else
+            firstMatch(input, value, rs, best)
+        }
       }
     }
 
