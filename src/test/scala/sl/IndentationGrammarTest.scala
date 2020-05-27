@@ -46,10 +46,14 @@ class IndentationGrammarTest extends OutputComparisonSpec with Lexers {
 
   val pipeline = path => lexer.tokenizeFromFile(path)
     .get.map{case Positioned(token, pos) => f"$token(${pos.line},${pos.column})"}
-    .reduce(_ ++ "\n" ++ _)
+    .mkString("\n")
 
   "indentation-based lexer" should "tokenize basic file correctly" in {
     outputMatch("indent-grammar-1")
+  }
+
+  it should "tokenize an empty file correctly" in {
+    outputMatch("empty")
   }
 
   it should "fail if input contains invalid tokens" in {

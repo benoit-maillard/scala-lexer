@@ -73,20 +73,21 @@ trait Lexers {
     // uses successive rules to make progress with input
     @tailrec
     private def advance(input: InputState, state: LexerState, acc: List[Positioned[Token]]): Option[List[Positioned[Token]]] = {
-      if (debug) {
-        println(f"- Attempting match on [${input.chars.toString.take(15)}]")
-      }
-      state.rules.firstMatch(input, state.value) match {
-        case None => Some(Positioned(error, input.fromStart) :: acc)
-        case Some(RuleMatch(tokens, nextState, remainingInput)) =>
-          if (debug) {
-            println(f"-> Produced tokens [$tokens]")
-          }
-          if (remainingInput.chars.length == 0) {
-            val finalTokens = nextState.rules.finalAction(nextState.value, remainingInput.fromStart)
-            Some(finalTokens.reverse ++ tokens ++ acc)
-          }
-          else advance(remainingInput, nextState, tokens ++ acc)
+      if (input.chars.length == 0) {
+        val finalTokens = state.rules.finalAction(state.value, input.fromStart)
+        Some(finalTokens.reverse ++ acc)
+      } else {
+        if (debug) {
+          println(f"- Attempting match on [${input.chars.toString.take(15)}]")
+        }
+        state.rules.firstMatch(input, state.value) match {
+          case None => Some(Positioned(error, input.fromStart) :: acc)
+          case Some(RuleMatch(tokens, nextState, remainingInput)) =>
+            if (debug) {
+              println(f"-> Produced tokens [$tokens]")
+            }
+            advance(remainingInput, nextState, tokens ++ acc)
+        }
       }
     }
   }
