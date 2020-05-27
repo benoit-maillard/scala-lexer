@@ -9,6 +9,7 @@ import scala.language.implicitConversions
 trait Lexers {
   type Token
   type Value
+  val debug = false
 
   /**
     * Lexer state at a given time. A state is composed of a set of rules and of a value.
@@ -52,6 +53,9 @@ trait Lexers {
       */
     def tokenizeFromString(input: String): Option[List[Positioned[Token]]] = {
       val start = InputState(Position.initial, new ArrayCharSequence(input.toArray))
+      if (debug) {
+        println(f"# Starting tokenization on [${input.take(30).replace("\n", "\\n")}]")
+      }
       advance(start, initialState, Nil).map(s => s.reverse)
     }
 
@@ -68,16 +72,23 @@ trait Lexers {
     
     // uses successive rules to make progress with input
     @tailrec
-    private def advance(input: InputState, state: LexerState, acc: List[Positioned[Token]]): Option[List[Positioned[Token]]] =
+    private def advance(input: InputState, state: LexerState, acc: List[Positioned[Token]]): Option[List[Positioned[Token]]] = {
+      if (debug) {
+        println(f"- Attempting match on [${input.chars.toString.take(15)}]")
+      }
       state.rules.firstMatch(input, state.value) match {
         case None => Some(Positioned(error, input.fromStart) :: acc)
         case Some(RuleMatch(tokens, nextState, remainingInput)) =>
+          if (debug) {
+            println(f"-> Produced tokens [$tokens]")
+          }
           if (remainingInput.chars.length == 0) {
             val finalTokens = nextState.rules.finalAction(nextState.value, remainingInput.fromStart)
             Some(finalTokens.reverse ++ tokens ++ acc)
           }
           else advance(remainingInput, nextState, tokens ++ acc)
       }
+    }
   }
 
   /**
@@ -96,13 +107,18 @@ trait Lexers {
       * @param remainingRules rules against which matching is yet to be attempted
       * @return a RuleMatch instance if any of the rules is matching the input prefix, None otherwise
       */
-    def firstMatch(input: InputState, value: Value, remainingRules: Seq[Rule[_]] = rules, best: Option[RuleMatch] = None): Option[RuleMatch] = remainingRules match {
+    def firstMatch(input: InputState, value: Value, remainingRules: Seq[Rule[_]] = rules, best: Option[RuleMatch] = None, debug: Boolean=false): Option[RuleMatch] = remainingRules match {
       case Seq() => best match {
         case Some(_) => best
         case None => None
       }
       case r +: rs => r.tryTransition(LexerState(this, value), input) match {
-        case None => firstMatch(input, value, rs, best)
+        case None => {
+          if (debug) {
+            //println(f"  - Rule ${r.}")
+          }
+          firstMatch(input, value, rs, best)
+        }
         case Some(m) => {
           if (m.inputState.fromStart.index > best.map(_.inputState.fromStart.index).getOrElse(0))
             firstMatch(input, value, rs, Some(m))
@@ -153,10 +169,19 @@ trait Lexers {
       */
     def tryTransition(state: LexerState, input: InputState): Option[RuleMatch] =
       expr.matchWith(input) match {
-        case None => None
+        case None =>{
+          if (debug) println(f"  - No match for ${expr.re.pattern.pattern}")
+          None
+        } 
         case Some((value, endPos)) => {
           val (newState, producedTokens) = transitionResult(state, value, input)
           val remainingChars = input.chars.subSequence(endPos.index - input.fromStart.index, input.chars.length())
+          
+          if (debug){
+            println(f"  - Match for ${expr.re.pattern.pattern}")
+            println(f"    - Result [$value] for tokens ${producedTokens.reverse.map(_.value)}")
+          } 
+
           Some(RuleMatch(producedTokens.reverse, newState, InputState(endPos, remainingChars)))
         }
       }
