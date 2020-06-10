@@ -24,20 +24,17 @@ class IndentationGrammarTest extends OutputComparisonSpec with Lexers {
   val re2: Expr[String ~ Int] = "\n" ~/~ indentExpr
 
   lazy val indentRules: RuleSet = RuleSet(
-    re1 |~> {
-      case (indents, str, pos) => (randomRules(indents), List(Positioned(Keyword(str), pos)))
+    re1 |> {
+      case (indents, str, pos) => (indents, List(Positioned(Keyword(str), pos)))
     },
-  )
-
-  lazy val randomRules: RuleSet = RuleSet(
-    re2 |~> {
+    re2 |> {
       case (indents, _ ~ spaces, pos) => indents match {
         case current +: tl =>
-          if (spaces == current) (indentRules(indents), List(Positioned(Newline, pos)))
+          if (spaces == current) (indents, List(Positioned(Newline, pos)))
           else if (spaces > current)
-            (LexerState(indentRules, spaces +: indents), List(Positioned(Newline, pos), Positioned(Indent, pos)))
-          else if (spaces == tl.head) (LexerState(indentRules, tl), List(Positioned(Newline, pos), Positioned(Dedent, pos)))
-          else (LexerState(indentRules, tl), List(Positioned(Error, pos)))
+            (spaces +: indents, List(Positioned(Newline, pos), Positioned(Indent, pos)))
+          else if (spaces == tl.head) (tl, List(Positioned(Newline, pos), Positioned(Dedent, pos)))
+          else (tl, List(Positioned(Error, pos)))
       }
     }
   )
