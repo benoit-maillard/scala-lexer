@@ -19,8 +19,8 @@ class IndentationGrammarTest extends OutputComparisonSpec with Lexers {
   case object Error extends T
 
   // counts the number of spaces
-  val re1: Expr[String] = "Token"
-  val re2: Expr[String ~ String] = "\n" ~/~ """[ ]*"""
+  val re1: Group = "Token"
+  val re2 = "\n" ~/~ """[ ]*"""
   
   val lexer = Lexer(
     re1 |> {

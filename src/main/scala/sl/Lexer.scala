@@ -175,7 +175,7 @@ trait Lexers {
     * @param expr expression
     * @return compiled expression
     */
-  implicit def compileExpr[A](expr: Expr[A]): CompiledExpr[A] = new CompiledExpr(expr)
+  implicit def compileExpr[A](expr: Expr): CompiledExpr[A] = new CompiledExpr(expr)
 
   /**
     * Compiles a regular expression made of a single group
@@ -190,7 +190,7 @@ trait Lexers {
     *
     * @param expr underlying expression
     */
-  class CompiledExpr[A](expr: Expr[A]) {
+  class CompiledExpr[A](expr: Expr) {
     val re = expr.build().map(s => "(" + s + ")").reduce(_ + _).r
 
     /**

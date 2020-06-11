@@ -74,9 +74,7 @@ object Expressions {
     * @param g regexp group
     * @return expression with a single group
     */
-  implicit def toExpr(g: Group): Expr[String] = Expr(results => results.head, () => Seq(g.build()), 1)
-
-
+  implicit def toExpr(g: Group): Expr = GroupUnit(g)
 
   /**
     * Creates a basic regular expression from a scala standard library regex string
@@ -100,7 +98,7 @@ object Expressions {
     * @param re regex string
     * @return resulting expression
     */
-  implicit def groupUnit(re: String): Expr[String] = toExpr(unit(re))
+  implicit def groupUnit(re: String): Expr = toExpr(unit(re))
 
   /**
     * Creates a regular expression that accepts any of the given patterns
@@ -134,7 +132,7 @@ object Expressions {
     * @param res
     * @return resulting expression
     */
-  def oneOfRe(res: Regex*): Expr[String] =
+  def oneOfRe(res: Regex*): Expr =
     oneOf(res.map(r => r.pattern.pattern):_*)
 
   /**
@@ -145,14 +143,9 @@ object Expressions {
     */
   case class InputState(val fromStart: Position, val chars: CharSequence)
 
-  /**
-    * A regular expression composed of at least one group
-    *
-    * @param transform function that takes a sequence of strings (matched groups) as input and produces a value
-    * @param build function that defines how the scala standard library regex should be built
-    * @param groupCount total number of groups in the expression
-    */
-  class Expr[A](val transform: Transform[A], val build: BuildExpr, val groupCount: Int) {
+  trait Expr {
+    def build(): Seq[String]
+
     /**
       * Creates a new expression that matches if the second expression matches directly after the first one.
       * Groups of each expression are preserved.
@@ -160,42 +153,20 @@ object Expressions {
       * @param right second expression
       * @return resulting expression
       */
-    def ~/~[B](right: Expr[B]): Expr[A ~ B] = Expr(
-      results => Expressions.~(
-        this.transform(results.take(groupCount)),
-        right.transform(results.takeRight(right.groupCount))
-      ),
-      () => build() ++ right.build(),
-      groupCount + right.groupCount
-    )
-
-    /**
-      * Transforms the resulting match value of the expression.
-      * 
-      * For example, an expression can be matched to produce a numeric value instead of a string
-      * {{{
-      * unit("""\d""").map(_.toInt)
-      * }}}
-      *
-      * @param tr transformation function
-      * @return resulting expression
-      */
-    def map[B](tr: A => B) = Expr(transform andThen tr, build, groupCount)
+    def ~/~(right: Group): GroupSeq = GroupSeq(this, right)
+  }
+  case class GroupUnit(group: Group) extends Expr {
+    override def build() = Seq(group.build())
   }
 
   /**
-    * Companion object for Expr
+    * A regular expression composed of at least one group
+    *
+    * @param transform function that takes a sequence of strings (matched groups) as input and produces a value
+    * @param build function that defines how the scala standard library regex should be built
+    * @param groupCount total number of groups in the expression
     */
-  object Expr {
-    /**
-      * Creates an expression
-      *
-      * @param transform function that takes a sequence of strings (matched groups) as input and produces a value
-      * @param build function that defines how the scala standard library regex should be built
-      * @param groupCount total number of groups in the expression
-      * @return resulting expression
-      */
-    def apply[A](transform: Transform[A], build: BuildExpr, groupCount: Int) =
-      new Expr(transform, build, groupCount)
+  case class GroupSeq(left: Expr, right: Group) extends Expr {
+    override def build(): Seq[String] = left.build() :+ right.build()
   }
 }
