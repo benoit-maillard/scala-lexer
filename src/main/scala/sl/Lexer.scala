@@ -1,6 +1,7 @@
 package sl
 import scala.util.matching.Regex
 import Expressions._
+import Positions._
 import scala.annotation.tailrec
 import java.io.File
 import scala.io.Source
