@@ -212,7 +212,7 @@ object Expressions {
     * @param line line in the string
     * @param column index from the first character of the line
     */
-  case class Position(val index: Int, val line: Int, val column: Int) {
+  case class Position(index: Int, line: Int, column: Int, offset: Int = 0) {
     /**
       * Advances the position to after the given character
       *
