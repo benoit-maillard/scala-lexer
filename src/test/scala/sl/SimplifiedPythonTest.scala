@@ -15,16 +15,14 @@ class SimplifiedPythonTest extends OutputComparisonSpec with Lexers {
   case object Space extends T
   case object Error extends T
 
-  val lexer = Lexer(LexerState(rules, 0), Error)
-
-  lazy val rules = RuleSet(
+  val lexer = Lexer(
     oneOf("True", "False", "if", "else") |> {
       case (i, str, pos) => (0, List(Positioned(KeywordToken(str), pos)))
     },
     unit("""\W*""") |> {
       case (i, str, pos) => (0, List(Positioned(Space, pos)))
     }
-  )
+  )(Error, 0)
 
   val pipeline = path => lexer.tokenizeFromFile(path)
     .get.map{case Positioned(token, pos) => f"$token(${pos.line},${pos.column})"}

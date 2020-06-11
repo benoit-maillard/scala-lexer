@@ -22,8 +22,8 @@ class IndentationGrammarTest extends OutputComparisonSpec with Lexers {
   val indentExpr: Expr[Int] = unit("""[ ]*""").map(s => s.length)
   val re1: Expr[String] = "Token"
   val re2: Expr[String ~ Int] = "\n" ~/~ indentExpr
-
-  lazy val indentRules: RuleSet = RuleSet(
+  
+  val lexer = Lexer(
     re1 |> {
       case (indents, str, pos) => (indents, List(Positioned(Keyword(str), pos)))
     },
@@ -37,9 +37,7 @@ class IndentationGrammarTest extends OutputComparisonSpec with Lexers {
           else (tl, List(Positioned(Error, pos)))
       }
     }
-  )
-  
-  val lexer = Lexer(LexerState(indentRules, Seq(0)), Error)
+  )(Error, Seq(0))
 
   val pipeline = path => lexer.tokenizeFromFile(path)
     .get.map{case Positioned(token, pos) => f"$token(${pos.line},${pos.column})"}
