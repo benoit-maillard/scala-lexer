@@ -7,10 +7,14 @@ import java.io.File
 import scala.io.Source
 import scala.language.implicitConversions
 
+import scala.util.{Try, Success, Failure}
+
 trait Lexers {
   type Token
   type Value
   val debug = false
+
+  implicit def positionedToken(token: Token): Positioned[Token] = NoPosition(token)
 
   /**
     * Result of matching a given rule with input prefix.
@@ -19,7 +23,7 @@ trait Lexers {
     * @param state state produced by matching
     * @param inputState progression in input string
     */
-  case class RuleMatch(tokens: List[Token], state: Value, inputState: InputState)
+  case class RuleMatch(tokens: List[WithPosition[Token]], state: Value, inputState: InputState)
 
   /**
     * Error in the lexing process
@@ -35,14 +39,14 @@ trait Lexers {
     * @param initialState set of rules and value that can be matched at the start of input string
     * @param error token that should be produced when no matching rule can be found
     */
-  case class Lexer(rules: Rule[_]*)(error: Token, initialValue: Value, finalAction: (Value, Position) => List[Token] = (_, _) => List()) {
+  case class Lexer(rules: Rule[_]*)(error: Token, initialValue: Value, finalAction: (Value, Position) => List[Positioned[Token]] = (_, _) => List()) {
     /**
       * Produces tokens using the successive rules and the given string.
       *
       * @param input string containing tokens
       * @return produced tokens if matching rules were found for the entire input, None otherwise
       */
-    def tokenizeFromString(input: String): Option[List[Token]] = {
+    def tokenizeFromString(input: String): Try[List[WithPosition[Token]]] = {
       val start = InputState(Position.initial, new ArrayCharSequence(input.toArray))
       if (debug) {
         println(f"# Starting tokenization on [${input.take(30).replace("\n", "\\n")}]")
@@ -56,23 +60,26 @@ trait Lexers {
       * @param path file containing tokens
       * @return produced tokens if matching rules were found for the entire input, None otherwise
       */
-    def tokenizeFromFile(path: String): Option[List[Token]] = {
+    def tokenizeFromFile(path: String): Try[List[WithPosition[Token]]] = {
       val content = Source.fromFile(path).mkString
       tokenizeFromString(content)
     }
     
     // uses successive rules to make progress with input
     @tailrec
-    private def advance(input: InputState, state: Value, acc: List[Token]): Option[List[Token]] = {
+    private def advance(input: InputState, state: Value, acc: List[WithPosition[Token]]): Try[List[WithPosition[Token]]] = {
       if (input.chars.length == 0) {
-        val finalTokens = finalAction(state, input.fromStart)
-        Some(finalTokens.reverse ++ acc)
+        val finalTokens = finalAction(state, input.fromStart).collect{
+          case t:WithPosition[Token] => t
+          case t:NoPosition[Token] => t.setPos(input.fromStart, input.fromStart)
+        }
+        Success(finalTokens.reverse ++ acc)
       } else {
         if (debug) {
           println(f"- Attempting match on [${input.chars.toString.take(15)}]")
         }
         firstMatch(input, state) match {
-          case None => Some(error :: acc)
+          case None => Failure(LexerError("Invalid symbol", input.fromStart))
           case Some(RuleMatch(tokens, nextState, remainingInput)) =>
             if (debug) {
               println(f"-> Produced tokens [$tokens]")
@@ -119,7 +126,8 @@ trait Lexers {
     *
     * @param expr regular expression that is matched against the input
     */
-  case class Rule[ExprRes](expr: CompiledExpr[ExprRes], transition: (Value, List[GroupRes]) => (Value, List[Token])) {
+    // TODO                                                                                             This must must Positioned !!! (not withPosition)
+  case class Rule[ExprRes](expr: CompiledExpr[ExprRes], transition: (Value, List[GroupRes]) => (Value, List[Positioned[Token]])) {
     /**
       * Tries to match the rule expression against the input.
       *
@@ -148,9 +156,16 @@ trait Lexers {
       }
     
     // gets the result of the transition associated with the rule
-    protected def transitionResult(state: Value, matchVal: List[GroupRes], input: InputState): (Value, List[Token]) = {
+    protected def transitionResult(state: Value, matchVal: List[GroupRes], input: InputState): (Value, List[WithPosition[Token]]) = {
       val (newValue, producedTokens) = transition(state, matchVal)
-      (newValue, producedTokens)
+
+      // add a default position (spans the entire result of the regex)
+      val positionedTokens = producedTokens.collect {
+        case t:WithPosition[Token] => t
+        case t:NoPosition[Token] => t.setPos(matchVal.head.start, matchVal.last.end)
+      }
+
+      (newValue, positionedTokens)
     }
   }
 
@@ -214,6 +229,6 @@ trait Lexers {
       * @param transform transformation function
       * @return resulting rule
       */
-    def |>(transform: (Value, List[GroupRes]) => (Value, List[Token])) = Rule(this, transform)
+    def |>(transform: (Value, List[GroupRes]) => (Value, List[Positioned[Token]])) = Rule(this, transform)
   }
 }

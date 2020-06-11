@@ -19,28 +19,27 @@ class IndentationGrammarTest extends OutputComparisonSpec with Lexers {
   case object Error extends T
 
   // counts the number of spaces
-  val indentExpr: Expr[Int] = unit("""[ ]*""").map(s => s.length)
   val re1: Expr[String] = "Token"
-  val re2: Expr[String ~ Int] = "\n" ~/~ indentExpr
+  val re2: Expr[String ~ String] = "\n" ~/~ """[ ]*"""
   
   val lexer = Lexer(
     re1 |> {
-      case (indents, str, pos) => (indents, List(Positioned(Keyword(str), pos)))
+      case (indents, List(str)) => (indents, List(Keyword(str.str)))
     },
     re2 |> {
-      case (indents, _ ~ spaces, pos) => indents match {
+      case (indents, List(_, spaces)) => indents match {
         case current +: tl =>
-          if (spaces == current) (indents, List(Positioned(Newline, pos)))
-          else if (spaces > current)
-            (spaces +: indents, List(Positioned(Newline, pos), Positioned(Indent, pos)))
-          else if (spaces == tl.head) (tl, List(Positioned(Newline, pos), Positioned(Dedent, pos)))
-          else (tl, List(Positioned(Error, pos)))
+          if (spaces.str.length == current) (indents, List(Newline))
+          else if (spaces.str.length > current)
+            (spaces.str.length +: indents, List(Newline, Indent))
+          else if (spaces.str.length == tl.head) (tl, List(Newline, Dedent))
+          else (tl, List(Error))
       }
     }
   )(Error, Seq(0))
 
   val pipeline = path => lexer.tokenizeFromFile(path)
-    .get.map{case Positioned(token, pos) => f"$token(${pos.line},${pos.column})"}
+    .get.map(positioned => f"${positioned.value}(${positioned.start.line},${positioned.start.column})")
     .mkString("\n")
 
   "indentation-based lexer" should "tokenize basic file correctly" in {
@@ -52,7 +51,7 @@ class IndentationGrammarTest extends OutputComparisonSpec with Lexers {
   }
 
   it should "fail if input contains invalid tokens" in {
-    outputContains("indent-grammar-invalid", "Error")
+    assertThrows[LexerError](output("indent-grammar-invalid"))
   }
 
   it should "fail if input contains inconsistent indentation" in {
