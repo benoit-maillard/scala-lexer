@@ -1,6 +1,7 @@
 package sl
 
 import Positions._
+import Rules._
 
 import scala.language.implicitConversions
 import scala.util.matching.Regex
@@ -144,6 +145,8 @@ object Expressions {
   case class InputState(val fromStart: Position, val chars: CharSequence)
 
   trait Expr {
+    lazy val re = build().map(s => "(" + s + ")").reduce(_ + _).r
+
     def build(): Seq[String]
 
     /**
@@ -154,7 +157,39 @@ object Expressions {
       * @return resulting expression
       */
     def ~/~(right: Group): GroupSeq = GroupSeq(this, right)
+
+    /**
+      * Tries to match the expression against the input
+      *
+      * @param input input against which the regex is matched
+      * @return the match result and the position after the entire match in input
+      */
+    def matchWith(input: InputState): Option[List[GroupRes]] = re.findPrefixMatchOf(input.chars) match {
+      case None => None
+      case Some(m) => {
+        val startPos = input.fromStart
+
+        val positions = m.subgroups.scanLeft(startPos){
+          case (lastPos, str) => lastPos + str
+        }
+
+        val groupRes = m.subgroups.zip(positions.init zip positions.tail).map {
+          case (str, (start, end)) => GroupRes(str, start, end)
+        }
+
+        Some(groupRes)
+      }
+    }
+
+    /**
+      * Associated the expression with a transition to a state with the same set of rules to create a rule
+      *
+      * @param transform transformation function
+      * @return resulting rule
+      */
+    def |>[Value, Token](transform: (Value, List[GroupRes]) => (Value, List[Positioned[Token]])) = Rule(this, transform)
   }
+
   case class GroupUnit(group: Group) extends Expr {
     override def build() = Seq(group.build())
   }

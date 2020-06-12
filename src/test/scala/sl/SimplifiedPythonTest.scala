@@ -22,7 +22,7 @@ class SimplifiedPythonTest extends OutputComparisonSpec with Lexers {
     unit("""\W*""") |> {
       case (i, List(str)) => (0, List(Space))
     }
-  )(Error, 0)
+  )(0)
 
   val pipeline = path => lexer.tokenizeFromFile(path)
     .get.map(token => f"${token.value}(${token.start.line},${token.start.column})")

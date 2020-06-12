@@ -36,7 +36,7 @@ class IndentationGrammarTest extends OutputComparisonSpec with Lexers {
           else (tl, List(Error))
       }
     }
-  )(Error, Seq(0))
+  )(Seq(0))
 
   val pipeline = path => lexer.tokenizeFromFile(path)
     .get.map(positioned => f"${positioned.value}(${positioned.start.line},${positioned.start.column})")

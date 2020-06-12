@@ -7,6 +7,8 @@ import java.io.File
 import scala.io.Source
 import scala.language.implicitConversions
 
+import Rules._
+
 import scala.util.{Try, Success, Failure}
 
 trait Lexers {
@@ -15,15 +17,6 @@ trait Lexers {
   val debug = false
 
   implicit def positionedToken(token: Token): Positioned[Token] = NoPosition(token)
-
-  /**
-    * Result of matching a given rule with input prefix.
-    *
-    * @param tokens tokens produced by matching
-    * @param state state produced by matching
-    * @param inputState progression in input string
-    */
-  case class RuleMatch(tokens: List[WithPosition[Token]], state: Value, inputState: InputState)
 
   /**
     * Error in the lexing process
@@ -39,7 +32,7 @@ trait Lexers {
     * @param initialState set of rules and value that can be matched at the start of input string
     * @param error token that should be produced when no matching rule can be found
     */
-  case class Lexer(rules: Rule[_]*)(initialValue: Value, finalAction: (Value, Position) => List[Positioned[Token]] = (_, _) => List()) {
+  case class Lexer(rules: Rule[Value, Token]*)(initialValue: Value, finalAction: (Value, Position) => List[Positioned[Token]] = (_, _) => List()) {
     /**
       * Produces tokens using the successive rules and the given string.
       *
@@ -97,138 +90,21 @@ trait Lexers {
       * @param remainingRules rules against which matching is yet to be attempted
       * @return a RuleMatch instance if any of the rules is matching the input prefix, None otherwise
       */
-    def firstMatch(input: InputState, value: Value, remainingRules: Seq[Rule[_]] = rules, best: Option[RuleMatch] = None, debug: Boolean=false): Option[RuleMatch] = remainingRules match {
-      case Seq() => best match {
-        case Some(_) => best
-        case None => None
-      }
-      case r +: rs => r.tryTransition(value, input) match {
-        case None => {
-          if (debug) {
-            //println(f"  - Rule ${r.}")
-          }
-          firstMatch(input, value, rs, best)
-        }
-        case Some(m) => {
-          if (m.inputState.fromStart.index > best.map(_.inputState.fromStart.index).getOrElse(0))
-            firstMatch(input, value, rs, Some(m))
-          else
+    def firstMatch(input: InputState, value: Value, remainingRules: Seq[Rule[Value, Token]] = rules, 
+                   best: Option[RuleMatch[Value, Token]] = None): Option[RuleMatch[Value, Token]] =
+      remainingRules match {
+        case Seq() => best
+        case r +: rs => r.tryTransition(value, input) match {
+          case None => {
             firstMatch(input, value, rs, best)
-        }
-      }
-    }
-  }
-
-  case class GroupRes(str: String, start: Position, end: Position)
-
-  /**
-    * Rule associating a regular expression with a transition function
-    *
-    * @param expr regular expression that is matched against the input
-    */
-    // TODO                                                                                             This must must Positioned !!! (not withPosition)
-  case class Rule[ExprRes](expr: CompiledExpr[ExprRes], transition: (Value, List[GroupRes]) => (Value, List[Positioned[Token]])) {
-    /**
-      * Tries to match the rule expression against the input.
-      *
-      * @param state state before the matching is attempted
-      * @param input input against which matching is attempted
-      * @return a RuleMatch instance if the regular expression is matching the input prefix, None otherwise
-      */
-    def tryTransition(state: Value, input: InputState): Option[RuleMatch] =
-      expr.matchWith(input) match {
-        case None => {
-          if (debug) println(f"  - No match for ${expr.re.pattern.pattern}")
-          None
-        } 
-        case Some(res) => {
-          val endPos = res.last.end
-          val (newState, producedTokens) = transitionResult(state, res, input)
-          val remainingChars = input.chars.subSequence(endPos.index - input.fromStart.index, input.chars.length())
-          
-          if (debug){
-            println(f"  - Match for ${expr.re.pattern.pattern}")
-            println(f"    - Result [$res] for tokens ${producedTokens.reverse}")
           }
-
-          Some(RuleMatch(producedTokens.reverse, newState, InputState(endPos, remainingChars)))
+          case Some(m) => {
+            if (m.inputState.fromStart.index > best.map(_.inputState.fromStart.index).getOrElse(0))
+              firstMatch(input, value, rs, Some(m))
+            else
+              firstMatch(input, value, rs, best)
+          }
         }
       }
-    
-    // gets the result of the transition associated with the rule
-    protected def transitionResult(state: Value, matchVal: List[GroupRes], input: InputState): (Value, List[WithPosition[Token]]) = {
-      val (newValue, producedTokens) = transition(state, matchVal)
-
-      // add a default position (spans the entire result of the regex)
-      val positionedTokens = producedTokens.collect {
-        case t:WithPosition[Token] => t
-        case t:NoPosition[Token] => t.setPos(matchVal.head.start, matchVal.last.end)
-      }
-
-      (newValue, positionedTokens)
-    }
-  }
-
-  /**
-    * Compiles a regular expression
-    *
-    * @param expr expression
-    * @return compiled expression
-    */
-  implicit def compileExpr[A](expr: Expr): CompiledExpr[A] = new CompiledExpr(expr)
-
-  /**
-    * Compiles a regular expression made of a single group
-    *
-    * @param expr expression
-    * @return compiled expression
-    */
-  implicit def compileGroup(expr: Group): CompiledExpr[String] = new CompiledExpr(toExpr(expr))
-
-  /**
-    * Top-level, compiled regular expression
-    *
-    * @param expr underlying expression
-    */
-  class CompiledExpr[A](expr: Expr) {
-    val re = expr.build().map(s => "(" + s + ")").reduce(_ + _).r
-
-    /**
-      * The regular expression in its scala standard library form
-      *
-      * @return regex
-      */
-    def get: Regex = re
-
-    /**
-      * Tries to match the expression against the input
-      *
-      * @param input input against which the regex is matched
-      * @return the match result and the position after the entire match in input
-      */
-    def matchWith(input: InputState): Option[List[GroupRes]] = re.findPrefixMatchOf(input.chars) match {
-      case None => None
-      case Some(m) => {
-        val startPos = input.fromStart
-
-        val positions = m.subgroups.scanLeft(startPos){
-          case (lastPos, str) => lastPos + str
-        }
-
-        val groupRes = m.subgroups.zip(positions.init zip positions.tail).map {
-          case (str, (start, end)) => GroupRes(str, start, end)
-        }
-
-        Some(groupRes)
-      }
-    }
-
-    /**
-      * Associated the expression with a transition to a state with the same set of rules to create a rule
-      *
-      * @param transform transformation function
-      * @return resulting rule
-      */
-    def |>(transform: (Value, List[GroupRes]) => (Value, List[Positioned[Token]])) = Rule(this, transform)
   }
 }
