@@ -39,7 +39,7 @@ trait Lexers {
     * @param initialState set of rules and value that can be matched at the start of input string
     * @param error token that should be produced when no matching rule can be found
     */
-  case class Lexer(rules: Rule[_]*)(error: Token, initialValue: Value, finalAction: (Value, Position) => List[Positioned[Token]] = (_, _) => List()) {
+  case class Lexer(rules: Rule[_]*)(initialValue: Value, finalAction: (Value, Position) => List[Positioned[Token]] = (_, _) => List()) {
     /**
       * Produces tokens using the successive rules and the given string.
       *
